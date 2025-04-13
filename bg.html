@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Remove White Background</title>
+  <style>
+    canvas { margin: 10px; border: 1px solid #ccc; }
+  </style>
+</head>
+<body>
+
+<h2>🎯 Remove White/Light Background and Extract Foreground (Transparent)</h2>
+<input type="file" id="upload" accept="image/*"><br>
+<canvas id="inputCanvas"></canvas>
+<canvas id="transparentCanvas"></canvas>
+
+<script>
+document.getElementById('upload').addEventListener('change', function (e) {
+  const file = e.target.files[0];
+  const img = new Image();
+  img.onload = () => processImage(img);
+  img.src = URL.createObjectURL(file);
+});
+
+function processImage(img) {
+  const inputCanvas = document.getElementById('inputCanvas');
+  const ctx = inputCanvas.getContext('2d');
+  inputCanvas.width = img.width;
+  inputCanvas.height = img.height;
+  ctx.drawImage(img, 0, 0);
+
+  const imageData = ctx.getImageData(0, 0, img.width, img.height);
+  const data = imageData.data;
+
+  const outputCanvas = document.getElementById('transparentCanvas');
+  const outCtx = outputCanvas.getContext('2d');
+  outputCanvas.width = img.width;
+  outputCanvas.height = img.height;
+  const output = outCtx.createImageData(img.width, img.height);
+  const outData = output.data;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+
+    // Convert RGB to HSV
+    const hsv = rgbToHsv(r, g, b);
+    const h = hsv[0], s = hsv[1], v = hsv[2];
+
+    // Check if pixel is in white/light range (like OpenCV: H ∈ [0,180], S ∈ [0,40], V ∈ [200,255])
+    const isWhiteBg = h >= 0 && h <= 360 && s <= 0.16 && v >= 0.8;
+
+    if (!isWhiteBg) {
+      // Keep the foreground
+      outData[i] = r;
+      outData[i + 1] = g;
+      outData[i + 2] = b;
+      outData[i + 3] = 255; // Fully opaque
+    } else {
+      // Make it transparent
+      outData[i] = 0;
+      outData[i + 1] = 0;
+      outData[i + 2] = 0;
+      outData[i + 3] = 0;
+    }
+  }
+
+  outCtx.putImageData(output, 0, 0);
+}
+
+// Convert RGB to HSV [0-360, 0-1, 0-1]
+function rgbToHsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s, v = max;
+  const d = max - min;
+
+  s = max === 0 ? 0 : d / max;
+
+  if (d !== 0) {
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)); break;
+      case g: h = ((b - r) / d + 2); break;
+      case b: h = ((r - g) / d + 4); break;
+    }
+    h *= 60;
+  }
+  return [h, s, v];
+}
+</script>
+</body>
+</html>
