@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🧩 Strava Story Editor</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; background: #f9f9f9; }
+    canvas { border: 1px solid #ccc; margin-top: 10px; background: white; cursor: grab; }
+    #controls { margin: 20px; }
+    input { margin: 5px; }
+  </style>
+</head>
+<body>
+
+<h2>🎯 Strava Overlay Story Editor</h2>
+
+<div id="controls">
+  <div>
+    <label>Upload Background (fixed):</label>
+    <input type="file" id="upload-bg" accept="image/*">
+  </div>
+  <div>
+    <label>Upload Map:</label>
+    <input type="file" id="upload-map" accept="image/*">
+  </div>
+  <div>
+    <label>Upload Text/Stats:</label>
+    <input type="file" id="upload-text" accept="image/*">
+  </div>
+  <button onclick="exportImage()">Export as PNG</button>
+</div>
+
+<canvas id="editorCanvas" width="800" height="600"></canvas>
+
+<script>
+const canvas = document.getElementById('editorCanvas');
+const ctx = canvas.getContext('2d');
+const images = {
+  background: null,
+  overlays: []  // contains map and text
+};
+
+let dragging = false;
+let selectedImage = null;
+let offsetX = 0, offsetY = 0;
+
+// --- Upload Handlers ---
+
+document.getElementById('upload-bg').addEventListener('change', function (e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const img = new Image();
+  img.onload = () => {
+    images.background = { img, x: 0, y: 0, width: canvas.width, height: canvas.height };
+    drawCanvas();
+  };
+  img.src = URL.createObjectURL(file);
+});
+
+document.getElementById('upload-map').addEventListener('change', function (e) {
+  uploadOverlay(e.target.files[0], 100, 100);
+});
+
+document.getElementById('upload-text').addEventListener('change', function (e) {
+  uploadOverlay(e.target.files[0], 300, 300);
+});
+
+function uploadOverlay(file, startX, startY) {
+  if (!file) return;
+  const img = new Image();
+  img.onload = () => {
+    images.overlays.push({
+      img,
+      x: startX,
+      y: startY,
+      width: img.width / 2,
+      height: img.height / 2,
+      movable: true,
+      resizable: true
+    });
+    drawCanvas();
+  };
+  img.src = URL.createObjectURL(file);
+}
+
+// --- Mouse Events for Dragging ---
+canvas.addEventListener('mousedown', e => {
+  const mouseX = e.offsetX;
+  const mouseY = e.offsetY;
+
+  for (let i = images.overlays.length - 1; i >= 0; i--) {
+    const overlay = images.overlays[i];
+    if (
+      mouseX >= overlay.x &&
+      mouseX <= overlay.x + overlay.width &&
+      mouseY >= overlay.y &&
+      mouseY <= overlay.y + overlay.height
+    ) {
+      selectedImage = overlay;
+      offsetX = mouseX - overlay.x;
+      offsetY = mouseY - overlay.y;
+      dragging = true;
+      break;
+    }
+  }
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (!dragging || !selectedImage) return;
+  selectedImage.x = e.offsetX - offsetX;
+  selectedImage.y = e.offsetY - offsetY;
+  drawCanvas();
+});
+
+canvas.addEventListener('mouseup', () => {
+  dragging = false;
+  selectedImage = null;
+});
+
+// --- Scroll to Resize ---
+canvas.addEventListener('wheel', e => {
+  if (!selectedImage || !selectedImage.resizable) return;
+
+  e.preventDefault();
+  const scaleFactor = e.deltaY < 0 ? 1.1 : 0.9;
+  const centerX = selectedImage.x + selectedImage.width / 2;
+  const centerY = selectedImage.y + selectedImage.height / 2;
+
+  selectedImage.width *= scaleFactor;
+  selectedImage.height *= scaleFactor;
+  selectedImage.x = centerX - selectedImage.width / 2;
+  selectedImage.y = centerY - selectedImage.height / 2;
+
+  drawCanvas();
+});
+
+// --- Drawing Logic ---
+function drawCanvas() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (images.background) {
+    ctx.drawImage(images.background.img, 0, 0, canvas.width, canvas.height);
+  }
+
+  for (const overlay of images.overlays) {
+    ctx.drawImage(overlay.img, overlay.x, overlay.y, overlay.width, overlay.height);
+  }
+}
+
+// --- Export ---
+function exportImage() {
+  const link = document.createElement('a');
+  link.download = 'strava_layout.png';
+  link.href = canvas.toDataURL();
+  link.click();
+}
+</script>
+
+</body>
+</html>
